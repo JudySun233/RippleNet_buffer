@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import os
+import csv
 
 from model import RippleNet
 
@@ -85,12 +86,14 @@ def train(args, data_info, show_loss):
     return best_model_path
 
 
-def test(args, data_info, best_model_path, k=10):
+def test(args, data_info, best_model_path, k=10, batch_size=1024):
     """Test the model on the test dataset and generate predictions and recommendations."""
-    test_data = data_info[2]
-    n_entity = data_info[3]
-    n_relation = data_info[4]
-    ripple_set = data_info[5]
+    train_data, eval_data, test_data = data_info[:3]
+    n_entity, n_relation, ripple_set = data_info[3:6]
+
+    # Define all items as the union of items in train_data and test_data
+    all_items = set(train_data[:, 1]) | set(test_data[:, 1])
+    print(f"Number of unique items: {len(all_items)}")
 
     model = RippleNet(args, n_entity, n_relation)
     if args.use_cuda:
@@ -105,95 +108,114 @@ def test(args, data_info, best_model_path, k=10):
     test_auc, test_acc = evaluation(args, model, test_data, ripple_set, args.batch_size)
     print(f"Test Results: AUC: {test_auc:.4f}, ACC: {test_acc:.4f}")
 
-    # Load user history and test data
-    user_history_path = "../data/movie/user_history_dict.npy"
-    test_data_path = "../data/movie/test_data.npy"
-    user_history_dict = np.load(user_history_path, allow_pickle=True).item()
-    test_data = np.load(test_data_path)
-
     # Directory to save results
     results_path = "./results"
     if not os.path.exists(results_path):
         os.makedirs(results_path)
 
     # Output file paths
-    predictions_file = os.path.join(results_path, "predictions_list.txt")
-    top_k_file = os.path.join(results_path, "top_k_recommendations.txt")
+    top_k_file = os.path.join(results_path, "top_k_recommendations.csv")
     metrics_file = os.path.join(results_path, "metrics.txt")
 
     # Initialize
-    predictions = []
     user_recommendations = {}
     ground_truth = {}
-    all_items = np.arange(model.entity_emb.num_embeddings)
     hit_count = 0
     total_relevant = 0
     total_recommended = 0
     ndcg_sum = 0
     user_count = 0
 
-    # Iterate over all users in the test data
-    unique_users = np.unique(test_data[:, 0])
-    for user in unique_users:
-        # Step 1: Get user's interaction history and candidate items
-        interacted_items = user_history_dict.get(user, [])
-        candidate_items = list(set(all_items) - set(interacted_items))
-        # Step 2: Prepare memories for the user
-        memories_h, memories_r, memories_t = [], [], []
-        for i in range(args.n_hop):
-            memories_h.append(torch.LongTensor(ripple_set[user][i][0]).unsqueeze(0))
-            memories_r.append(torch.LongTensor(ripple_set[user][i][1]).unsqueeze(0))
-            memories_t.append(torch.LongTensor(ripple_set[user][i][2]).unsqueeze(0))
+    # Create a dictionary to track user interactions from train_data and test_data
+    user_interactions = {}
+    # for row in np.vstack((train_data, test_data)):
+    #     user, item, interaction = row
+    #     if interaction == 1:  # Only consider items with positive interactions
+    #         if user not in user_interactions:
+    #             user_interactions[user] = set()
+    #         user_interactions[user].add(item)
+    for row in train_data: 
+        user, item, interaction = row
+        if interaction == 1:
+            if user not in user_interactions:
+                user_interactions[user] = set()
+            user_interactions[user].add(item)
 
-        # Prepare all items for the user
-        items = torch.LongTensor(candidate_items)
-        labels = torch.zeros_like(items)
+    # Prepare ground truth for this user
+    ground_truth = {}
+    for user in np.unique(test_data[:, 0]):
+        ground_truth[user] = set(
+            test_data[test_data[:, 0] == user][:, 1][test_data[test_data[:, 0] == user][:, 2] == 1]
+        )
 
-        if args.use_cuda:
-            items = items.cuda()
-            labels = labels.cuda()
-            memories_h = [m.cuda() for m in memories_h]
-            memories_r = [m.cuda() for m in memories_r]
-            memories_t = [m.cuda() for m in memories_t]
+    # Prepare CSV file
+    with open(top_k_file, mode="w", newline="") as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["user id", "ground truth movies", "top 10 recommendations"])
 
-        # Step 3: Predict scores for all candidate items
-        scores = model(items, labels, memories_h, memories_r, memories_t)["scores"].detach().cpu().numpy()
-        predictions.append((user, scores.tolist()))
+        # Iterate over all users in the test data
+        unique_users = np.unique(test_data[:, 0])
+        for user in unique_users:
+            # Step 1: Get user's interaction history and candidate items
+            interacted_items = user_interactions.get(user, set())
+            candidate_items = list((all_items - interacted_items) | ground_truth.get(user, set()))  # Exclude interacted items
 
-        # Step 4: Select Top-K items
-        top_k_indices = np.argsort(scores)[-k:][::-1]
-        top_k_items = [(candidate_items[i], scores[i]) for i in top_k_indices]
-        user_recommendations[user] = top_k_items
+            # Step 2: Prepare memories for the user
+            memories_h, memories_r, memories_t = [], [], []
+            for i in range(args.n_hop):
+                memories_h.append(torch.LongTensor(ripple_set[user][i][0]).unsqueeze(0))
+                memories_r.append(torch.LongTensor(ripple_set[user][i][1]).unsqueeze(0))
+                memories_t.append(torch.LongTensor(ripple_set[user][i][2]).unsqueeze(0))
 
-        # Step 5: Get ground truth
-        ground_truth[user] = set(test_data[test_data[:, 0] == user][:, 1][test_data[test_data[:, 0] == user][:, 2] == 1])
+            if args.use_cuda:
+                memories_h = [m.cuda() for m in memories_h]
+                memories_r = [m.cuda() for m in memories_r]
+                memories_t = [m.cuda() for m in memories_t]
 
-        # Step 6: Calculate metrics
-        recommended_items = [item for item, _ in top_k_items]
-        hits = ground_truth[user] & set(recommended_items)
-        hit_count += len(hits)
-        total_relevant += len(ground_truth[user])
-        total_recommended += len(recommended_items)
+            # Step 3: Predict scores for all candidate items in batches
+            scores = []
+            for start in range(0, len(candidate_items), batch_size):
+                end = start + batch_size
+                batch_items = torch.LongTensor(candidate_items[start:end])
+                batch_labels = torch.zeros(len(batch_items), dtype=torch.float)
 
-        relevance_scores = [1 if item in ground_truth[user] else 0 for item in recommended_items]
-        ndcg_sum += calculate_ndcg(relevance_scores)
-        user_count += 1
+                if args.use_cuda:
+                    batch_items = batch_items.cuda()
+                    batch_labels = batch_labels.cuda()
 
-    # Step 7: Save predictions
-    with open(predictions_file, "w") as f:
-        for user, scores in predictions:
-            scores_str = " ".join(map(str, scores))
-            f.write(f"User {user}: {scores_str}\n")
-    print(f"Predictions for all items saved to {predictions_file}")
+                # Use model to predict scores
+                batch_scores = model(batch_items, batch_labels, memories_h, memories_r, memories_t)["scores"].detach().cpu().numpy()
+                scores.extend(batch_scores)
+            scores = np.array(scores)
 
-    # Step 8: Save Top-K recommendations
-    with open(top_k_file, "w") as f:
-        for user, top_k_items in user_recommendations.items():
-            top_k_str = ", ".join([f"({item}, {score:.6f})" for item, score in top_k_items])
-            f.write(f"User {user}: [{top_k_str}]\n")
+            # Step 4: Select Top-K items
+            top_k_indices = np.argsort(scores)[-k:][::-1]  # Indices of Top-K scores
+            top_k_items = [(candidate_items[i], scores[i]) for i in top_k_indices]  # Top-K items and scores
+            user_recommendations[user] = top_k_items
+
+            # Step 5: Write to CSV
+            ground_truth_list = list(ground_truth[user])  # Ground truth items
+            top_k_list = [item for item, _ in top_k_items]  # Recommended Top-K items
+            csv_writer.writerow([user, ground_truth_list, top_k_list])
+
+            # Step 6: Calculate metrics
+            recommended_items = set(top_k_list)
+            hits = ground_truth[user] & recommended_items
+            hit_count += len(hits)
+            total_relevant += len(ground_truth[user])
+            total_recommended += len(recommended_items)
+
+            relevance_scores = [1 if item in ground_truth[user] else 0 for item in top_k_list]
+            ndcg_sum += calculate_ndcg(relevance_scores)
+            user_count += 1
+
+            # print(f"Ground truth for user {user}: {ground_truth[user]}")
+            # print(f"Candidate items: {candidate_items}")
+            # print(f"Intersection: {ground_truth[user] & set(candidate_items)}")
+
     print(f"Top-K recommendations saved to {top_k_file}")
 
-    # Step 9: Calculate and save metrics
+    # Step 7: Calculate and save overall metrics
     precision = hit_count / total_recommended if total_recommended > 0 else 0
     recall = hit_count / total_relevant if total_relevant > 0 else 0
     ndcg = ndcg_sum / user_count if user_count > 0 else 0

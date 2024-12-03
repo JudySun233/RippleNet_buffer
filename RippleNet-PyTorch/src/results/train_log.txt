@@ -1,18 +1,18 @@
-Epoch 1    Train AUC: 0.8866  ACC: 0.8057    Eval AUC: 0.8784  ACC: 0.8008
-New best model saved: Epoch 1, AUC: 0.8784, ACC: 0.8008
-Epoch 2    Train AUC: 0.9029  ACC: 0.8208    Eval AUC: 0.8873  ACC: 0.8052
-New best model saved: Epoch 2, AUC: 0.8873, ACC: 0.8052
-Epoch 3    Train AUC: 0.9196  ACC: 0.8401    Eval AUC: 0.8962  ACC: 0.8182
-New best model saved: Epoch 3, AUC: 0.8962, ACC: 0.8182
-Epoch 4    Train AUC: 0.9365  ACC: 0.8614    Eval AUC: 0.9080  ACC: 0.8290
-New best model saved: Epoch 4, AUC: 0.9080, ACC: 0.8290
-Epoch 5    Train AUC: 0.9470  ACC: 0.8747    Eval AUC: 0.9156  ACC: 0.8394
-New best model saved: Epoch 5, AUC: 0.9156, ACC: 0.8394
-Epoch 6    Train AUC: 0.9530  ACC: 0.8833    Eval AUC: 0.9190  ACC: 0.8406
-New best model saved: Epoch 6, AUC: 0.9190, ACC: 0.8406
-Epoch 7    Train AUC: 0.9568  ACC: 0.8896    Eval AUC: 0.9195  ACC: 0.8429
-New best model saved: Epoch 7, AUC: 0.9195, ACC: 0.8429
-Epoch 8    Train AUC: 0.9601  ACC: 0.8939    Eval AUC: 0.9182  ACC: 0.8406
-Epoch 9    Train AUC: 0.9635  ACC: 0.8993    Eval AUC: 0.9199  ACC: 0.8440
-New best model saved: Epoch 9, AUC: 0.9199, ACC: 0.8440
-Epoch 10    Train AUC: 0.9656  ACC: 0.9030    Eval AUC: 0.9187  ACC: 0.8425
+Epoch 1    Train AUC: 0.8724  ACC: 0.7938    Eval AUC: 0.8642  ACC: 0.7876
+New best model saved: Epoch 1, AUC: 0.8642, ACC: 0.7876
+Epoch 2    Train AUC: 0.9010  ACC: 0.8178    Eval AUC: 0.8850  ACC: 0.8044
+New best model saved: Epoch 2, AUC: 0.8850, ACC: 0.8044
+Epoch 3    Train AUC: 0.9132  ACC: 0.8309    Eval AUC: 0.8902  ACC: 0.8080
+New best model saved: Epoch 3, AUC: 0.8902, ACC: 0.8080
+Epoch 4    Train AUC: 0.9335  ACC: 0.8579    Eval AUC: 0.9076  ACC: 0.8299
+New best model saved: Epoch 4, AUC: 0.9076, ACC: 0.8299
+Epoch 5    Train AUC: 0.9423  ACC: 0.8690    Eval AUC: 0.9120  ACC: 0.8345
+New best model saved: Epoch 5, AUC: 0.9120, ACC: 0.8345
+Epoch 6    Train AUC: 0.9486  ACC: 0.8773    Eval AUC: 0.9141  ACC: 0.8366
+New best model saved: Epoch 6, AUC: 0.9141, ACC: 0.8366
+Epoch 7    Train AUC: 0.9545  ACC: 0.8860    Eval AUC: 0.9159  ACC: 0.8401
+New best model saved: Epoch 7, AUC: 0.9159, ACC: 0.8401
+Epoch 8    Train AUC: 0.9571  ACC: 0.8895    Eval AUC: 0.9156  ACC: 0.8396
+Epoch 9    Train AUC: 0.9607  ACC: 0.8948    Eval AUC: 0.9168  ACC: 0.8416
+New best model saved: Epoch 9, AUC: 0.9168, ACC: 0.8416
+Epoch 10    Train AUC: 0.9637  ACC: 0.8999    Eval AUC: 0.9165  ACC: 0.8409

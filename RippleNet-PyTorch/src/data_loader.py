@@ -40,7 +40,8 @@ def load_rating(args):
     return train_data, eval_data, test_data, user_history_dict
 
 
-def dataset_split(rating_np, train_file, eval_file, test_file, user_history_file):
+def dataset_split(rating_np, train_file, eval_file, test_file, user_history_file, seed=42):
+    np.random.seed(seed)
     print('splitting dataset ...')
 
     # train:eval:test = 6:2:2
@@ -113,40 +114,47 @@ def construct_kg(kg_np):
 
 
 def get_ripple_set(args, kg, user_history_dict):
-    print('constructing ripple set ...')
-
     # user -> [(hop_0_heads, hop_0_relations, hop_0_tails), (hop_1_heads, hop_1_relations, hop_1_tails), ...]
-    ripple_set = collections.defaultdict(list)
+    ripple_set_file = f"../data/{args.dataset}/ripple_set.npy"
 
-    for user in user_history_dict:
-        for h in range(args.n_hop):
-            memories_h = []
-            memories_r = []
-            memories_t = []
+    if os.path.exists(ripple_set_file):
+        print('Loading existing ripple set...')
+        ripple_set = np.load(ripple_set_file, allow_pickle=True).item()
+    else:
+        print('Constructing ripple set...')
+        ripple_set = collections.defaultdict(list)
 
-            if h == 0:
-                tails_of_last_hop = user_history_dict[user]
-            else:
-                tails_of_last_hop = ripple_set[user][-1][2]
+        for user in user_history_dict:
+            for h in range(args.n_hop):
+                memories_h = []
+                memories_r = []
+                memories_t = []
 
-            for entity in tails_of_last_hop:
-                for tail_and_relation in kg[entity]:
-                    memories_h.append(entity)
-                    memories_r.append(tail_and_relation[1])
-                    memories_t.append(tail_and_relation[0])
+                if h == 0:
+                    tails_of_last_hop = user_history_dict[user]
+                else:
+                    tails_of_last_hop = ripple_set[user][-1][2]
 
-            # if the current ripple set of the given user is empty, we simply copy the ripple set of the last hop here
-            # this won't happen for h = 0, because only the items that appear in the KG have been selected
-            # this only happens on 154 users in Book-Crossing dataset (since both BX dataset and the KG are sparse)
-            if len(memories_h) == 0:
-                ripple_set[user].append(ripple_set[user][-1])
-            else:
-                # sample a fixed-size 1-hop memory for each user
-                replace = len(memories_h) < args.n_memory
-                indices = np.random.choice(len(memories_h), size=args.n_memory, replace=replace)
-                memories_h = [memories_h[i] for i in indices]
-                memories_r = [memories_r[i] for i in indices]
-                memories_t = [memories_t[i] for i in indices]
-                ripple_set[user].append((memories_h, memories_r, memories_t))
+                for entity in tails_of_last_hop:
+                    for tail_and_relation in kg[entity]:
+                        memories_h.append(entity)
+                        memories_r.append(tail_and_relation[1])
+                        memories_t.append(tail_and_relation[0])
+
+                # if the current ripple set of the given user is empty, we simply copy the ripple set of the last hop here
+                # this won't happen for h = 0, because only the items that appear in the KG have been selected
+                # this only happens on 154 users in Book-Crossing dataset (since both BX dataset and the KG are sparse)
+                if len(memories_h) == 0:
+                    ripple_set[user].append(ripple_set[user][-1])
+                else:
+                    # sample a fixed-size 1-hop memory for each user
+                    replace = len(memories_h) < args.n_memory
+                    indices = np.random.choice(len(memories_h), size=args.n_memory, replace=replace)
+                    memories_h = [memories_h[i] for i in indices]
+                    memories_r = [memories_r[i] for i in indices]
+                    memories_t = [memories_t[i] for i in indices]
+                    ripple_set[user].append((memories_h, memories_r, memories_t))
+
+        np.save(ripple_set_file, ripple_set)
 
     return ripple_set
